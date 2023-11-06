@@ -4,14 +4,12 @@ import math
 import RPi.GPIO as GPIO
 from time import sleep
 import os 
-from state_3 import *
+from state_3 import blue_line_tracking, calculate_angle, calculate_centerline
 
 os.environ['QT_QPA_PLATFORM']= 'xcb'
 state_string = ""
 inverted=False
 current_state = 3
-exit_loop=False
-
 
 
 
@@ -22,6 +20,58 @@ exit_loop=False
 #S4: DRIVE TO CALCULATED LAUNCH POSITION, START SERVO, RELEASE LATCH
 #S5: IMPLEMENT PATH FINDING ALGORITHM TO FIND BOX AND STOP 
 
+# Set the GPIO mode to BCM
+GPIO.setmode(GPIO.BCM)
+# Disable GPIO warnings
+GPIO.setwarnings(False)
+# Define the motor pins
+    
+IN1 = 5 #right motor direction pin1 
+IN2 = 6 #right motor direction pin2 
+IN3 = 17 #left motor direction pin1 
+IN4 = 23 #left motor direction pin2 
+ENA = 27 #right motor PWM speed pin 
+ENB = 22 #left motor PWM speed pin 
+
+# Set the motor pins as output
+GPIO.setup(IN1, GPIO.OUT)
+GPIO.setup(IN2, GPIO.OUT)
+GPIO.setup(IN3, GPIO.OUT)
+GPIO.setup(IN4, GPIO.OUT)
+GPIO.setup(ENA, GPIO.OUT)
+GPIO.setup(ENB, GPIO.OUT)
+    
+
+# Create PWM objects for speed control
+pwm_a = GPIO.PWM(ENA, 1000)
+pwm_b = GPIO.PWM(ENB, 1000)
+
+pwm_a.start(0)
+pwm_b.start(0)
+
+# Function to drive the motors
+def drive(right_speed, left_speed): 
+    if left_speed > 0:
+        GPIO.output(IN3, GPIO.HIGH)
+        GPIO.output(IN4, GPIO.LOW)
+    elif left_speed < 0:
+        GPIO.output(IN3, GPIO.LOW)
+        GPIO.output(IN4, GPIO.HIGH)
+    else:
+        GPIO.output(IN3, GPIO.LOW)
+        GPIO.output(IN4, GPIO.LOW)
+    if right_speed > 0:
+        GPIO.output(IN1, GPIO.HIGH)
+        GPIO.output(IN2, GPIO.LOW)
+    elif right_speed < 0:
+        GPIO.output(IN1, GPIO.LOW)
+        GPIO.output(IN2, GPIO.HIGH)
+    else:
+        GPIO.output(IN1, GPIO.LOW)
+        GPIO.output(IN2, GPIO.LOW)
+
+    pwm_a.ChangeDutyCycle(abs(right_speed))
+    pwm_b.ChangeDutyCycle(abs(left_speed))
 
 
 def display_state1():
@@ -40,95 +90,110 @@ def display_state2():
         cv2.imshow("State 2", processed_frame)
         if cv2.waitKey(1) & 0xFF == 27:
             break
-def display_state3(inverted):
-    while True:
-        kp_corner = 1.4# Proportional gain
-        ki_corner=  0.08 # Integral gain
-        kd_corner = 1.0 # Derivative gain
 
-        kp_straight = 0.4 # Proportional gain
-        ki_straight= 0.0  # Integral gain
-        kd_straight = 0.2  # Derivative gain
+def state3(frame):   
+        kp_corner = 3.4# Proportional gain for corners and cornering lines
+        ki_corner=  0.0 # Integral gain for corners and cornering lines
+        kd_corner = 0.1 # Derivative gain for corners and cornering lines
+
+        kp_straight = 0.4 # Proportional gain for straight lines
+        ki_straight= 0.0  # Integral gain for straight lines
+        kd_straight = 0.0  # Derivative gain for straight lines
 
         integral = 0
         prev_error = 0
         error = 0 
 
-        slow_speed = 60
-        fast_speed =  100
-        ret, frame = cap.read()
-        # You can modify the frame or perform different operations for state 2
-        # For example, you can apply image processing to the frame
-        if not ret:
-            break
+        slow_speed = 80 #Speed for corners, cornering lines and intersections
+        fast_speed =  100 #Speed for corners, cornering line
+        intersection_speed = 50 #Speed for intersections
 
-        if inverted:
-            # Rotate the frame by 180 degrees
-            frame = cv2.rotate(frame, cv2.ROTATE_180)
-        # Check if the robot is upside down (replace this condition with your detection logic)
+
+        #Initalize varaibles for PID loop
         line_track_return = blue_line_tracking(frame)
         processed_frame = line_track_return[0]
         distance = line_track_return[1]
-        angle = line_track_return[2]
+        line_type = line_track_return[2]
+        area = line_track_return[3]
+        direction = line_track_return[4]
         right_speed,left_speed = None,None
-        #p1,p2 =  line_track_return[3], line_track_return[4]
-        x_midpoint = line_track_return[3]
+        angle = line_track_return[5]
+        state_4_transition = line_track_return[6]
+        intersection_count = line_track_return[7]
+    
+    
 
         if processed_frame is not None and processed_frame.shape[0] > 0 and processed_frame.shape[1] > 0:
-            cv2.imshow("State 3", processed_frame)
-            if distance == -500:
-                right_speed =  -1 * slow_speed
-                left_speed =  -1 * slow_speed
-                drive(right_speed,left_speed)
-                print("Backing Up",(right_speed,left_speed))
-            else:    
-                error = distance
-
-                if error is None:
-                    integral = 0
-                        # Rest of your PID controller logic
-                else:
+           #while current_state == 3: 
+                #If the line is lost, back up until line is found again
+                if distance == -500:
+                        if state_4_transition:
+                            drive(0,0)
+                            print("State 4",state_4_transition,intersection_count)
+                        else:
+                            right_speed =  -1 * slow_speed
+                            left_speed =  -1 * slow_speed
+                            drive(right_speed,left_speed)
+                            print("Backing Up",(right_speed,left_speed),state_4_transition,intersection_count)
+                else:    
                     
-                    integral += error
-                    derivative = error - prev_error
-                    pid = lambda error,integral,derivative,kp,ki,kd: kp * error + ki * integral + kd * derivative
-                    if angle >112 or angle < 70:
-                        pid_output = pid(error,integral,derivative,kp_corner,ki_corner,kd_corner)
-                        right_speed = (slow_speed) - pid_output
-                        left_speed = (slow_speed) + pid_output
+                    #Proportional variable
+                    error = distance
 
-                        # Ensure motor speeds are within a valid range (0-100)
-                        right_speed = max(0,min((slow_speed),right_speed))
-                        left_speed = max(0, min((slow_speed), left_speed))
-                        drive(right_speed, left_speed)
-                    
+                    if error is None:
+                        
+                        #Integral variable
+                        integral = 0
+                            # Rest of your PID controller logic
                     else:
-                        pid_output = pid(error,integral,derivative,kp_straight,ki_straight,kd_straight)
-                        right_speed = (fast_speed) - pid_output
-                        left_speed = (fast_speed) + pid_output
+                        
+                        #PID Loop
+                        integral += error
+                        derivative = error - prev_error
+                        pid = lambda error,integral,derivative,kp,ki,kd: kp * error + ki * integral + kd * derivative
+                        
+                        #PID Loop for Corners and Cornering Lines
+                        if line_type == "Right Corner" or line_type == "Cornering Line" or line_type == "Left Corner":
+                            pid_output = pid(error,integral,derivative,kp_corner,ki_corner,kd_corner)
+                            right_speed = (slow_speed) - pid_output
+                            left_speed = (slow_speed) + pid_output
 
-                        # Ensure motor speeds are within a valid range (0-100)
-                        right_speed = max(0,min((fast_speed),right_speed))
-                        left_speed = max(0, min((fast_speed), left_speed))
-                        drive(right_speed, left_speed)
+                            # Ensure motor speeds are within a valid range (0-100)
+                            right_speed = max(0,min((slow_speed),right_speed))
+                            left_speed = max(0, min((slow_speed), left_speed))
+                            drive(right_speed, left_speed)
+                        
+                        #PID loop for Straight Line
+                        elif line_type == "Straight Line":
+                            pid_output = pid(error,integral,derivative,kp_straight,ki_straight,kd_straight)
+                            right_speed = (fast_speed) - pid_output
+                            left_speed = (fast_speed) + pid_output
+
+                            # Ensure motor speeds are within a valid range (0-100)
+                            right_speed = max(0,min((fast_speed),right_speed))
+                            left_speed = max(0, min((fast_speed), left_speed))
+                            drive(right_speed, left_speed)
+                        
+                        #Motor control for Intersection
+                        else:
+                            if direction == "Left":
+                                right_speed,left_speed = -1,intersection_speed
+                                drive(right_speed,left_speed)
+                            
+                            right_speed,left_speed = intersection_speed,-1
+                            drive(right_speed,left_speed)
+                            print(direction)
+                            
+                        #Derrivative Variable
+                        prev_error = error
+
+                        #Print Helpful Variables
+                        print(right_speed,left_speed,angle,line_type,state_4_transition)
                     
-                    prev_error = error
-                    print(right_speed,left_speed,angle,(x_midpoint))
-                
-               
-        if cv2.waitKey(1) & 0xFF == 27:
-                break
 
-
-def display_state4():
-    while True:
-        ret, frame = cap.read()
-        # You can modify the frame or perform different operations for state 2
-        # For example, you can apply image processing to the frame
-        processed_frame = frame  # Replace this with your actual processing
-        cv2.imshow("State 4", processed_frame)
-        if cv2.waitKey(1) & 0xFF == 27:
-            break
+def display_state4(current_state):
+    drive(0,0)
+    print(current_state)
 
 def display_state5():
     while True:
@@ -142,21 +207,34 @@ def display_state5():
 
 
 cap = cv2.VideoCapture(0)
-while True:
+cap.set(cv2.CAP_PROP_FRAME_WIDTH,280 )
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
 
+
+while True:
+    
+    ret, frame = cap.read()
+    if not ret:
+        break
+    # Check if the robot is upside down (replace this condition with your detection logic)
+
+    if inverted:
+        # Rotate the frame by 180 degrees
+        frame = cv2.rotate(frame, cv2.ROTATE_180)
+        
     if current_state == 1:
         display_state1()
     if current_state ==2:
         display_state2()
     if current_state ==3:
-        display_state3(inverted)
+        state3(frame)
     if current_state ==4:
-        display_state4()
+        display_state4(current_state)
     if current_state ==5:
         display_state5()
     
 
-            
+    print(current_state) 
     if cv2.waitKey(1) & 0xFF == 27:
         break
 
