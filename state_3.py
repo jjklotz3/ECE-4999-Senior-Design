@@ -107,18 +107,18 @@ def blue_line_tracking(frame):
    
    #Initalize state 3 variables
    center_point,error,angle,x_midpoint,y_midpoint,highest_point,box = None,None,None,None,None,None,None
-   largest_area,right_corner_count,left_corner_count,intersection_count = 1,0,1,0
+   largest_area,right_corner_count,left_corner_count = 1,0,1
    line_type,direction = "",""
    max_distance_threshold = 200.0
    contours_list = []
    highest_point = (0,0)
    highest_distance = 0
-   state_4_transition = False
+
    
    #Filter out contours by area to reduce noise 
    for cnt in contours:
        area_c = cv2.contourArea(cnt)
-       if area_c > 2000.0 and area_c < 44000.0:
+       if area_c > 2000.0 and area_c < 37000.0:
            contours_list.append(cnt)
 
 
@@ -171,7 +171,6 @@ def blue_line_tracking(frame):
             highest_point = roi_center
             angle = 0
             center_point = roi_center
-            intersection_count = intersection_count + 1
             if right_corner_count < left_corner_count:
                 direction = "Right"
             else:
@@ -221,12 +220,9 @@ def blue_line_tracking(frame):
    
                    
    if not(contours_list):
-       error = -500 #This is returned if the line is not found
-       corner_count = max(right_corner_count,left_corner_count)
-       if intersection_count > 0 and corner_count > 4:
-            state_4_transition = True
+        error = -500 #This is returned if the line is not found
    #return roi,largest_area,line_type,error,highest_point, center_point
-   return roi,error,line_type, largest_area,direction,angle,state_4_transition,intersection_count
+   return roi,error,line_type, largest_area,direction,angle
 
 """
 FOR TESTING AND DEBUGING

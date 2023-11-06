@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import math
 import RPi.GPIO as GPIO
-from time import sleep
+import time
 import os 
 from state_3 import blue_line_tracking, calculate_angle, calculate_centerline
 
@@ -10,8 +10,8 @@ os.environ['QT_QPA_PLATFORM']= 'xcb'
 state_string = ""
 inverted=False
 current_state = 3
-
-
+start_time_state_3 = None
+start_time_state_4 = None
 
 #STATES DESCRIPTIONS
 #S1: DRIVE OFF TABLE
@@ -92,6 +92,12 @@ def display_state2():
             break
 
 def state3(frame):   
+        global start_time_state_3
+        global current_state
+        
+        if start_time_state_3 is None:
+            start_time_state_3 = time.perf_counter()
+            
         kp_corner = 3.4# Proportional gain for corners and cornering lines
         ki_corner=  0.0 # Integral gain for corners and cornering lines
         kd_corner = 0.1 # Derivative gain for corners and cornering lines
@@ -118,8 +124,8 @@ def state3(frame):
         direction = line_track_return[4]
         right_speed,left_speed = None,None
         angle = line_track_return[5]
-        state_4_transition = line_track_return[6]
-        intersection_count = line_track_return[7]
+        
+        
     
     
 
@@ -127,14 +133,16 @@ def state3(frame):
            #while current_state == 3: 
                 #If the line is lost, back up until line is found again
                 if distance == -500:
-                        if state_4_transition:
+                        elapsed_time = (time.perf_counter() - start_time_state_3)
+                        if elapsed_time > 19:
                             drive(0,0)
-                            print("State 4",state_4_transition,intersection_count)
+                            current_state = 4
+                            print("Moving to State 4",elapsed_time)
                         else:
                             right_speed =  -1 * slow_speed
                             left_speed =  -1 * slow_speed
                             drive(right_speed,left_speed)
-                            print("Backing Up",(right_speed,left_speed),state_4_transition,intersection_count)
+                            print("Backing Up",(right_speed,left_speed),elapsed_time)
                 else:    
                     
                     #Proportional variable
@@ -188,22 +196,24 @@ def state3(frame):
                         prev_error = error
 
                         #Print Helpful Variables
-                        print(right_speed,left_speed,angle,line_type,state_4_transition)
+                        print(right_speed,left_speed,angle,line_type)
                     
 
-def display_state4(current_state):
-    drive(0,0)
-    print(current_state)
+def display_state4():
+    global current_state
+    global start_time_state_4
+    if start_time_state_4 is None:
+            start_time_state_4 = time.perf_counter()
+        
+    elapsed_time = (time.perf_counter() - start_time_state_4)
+    if elapsed_time < 4:
+       drive(-40,-40)
+    else:
+        drive(0,0)
+    print("In State 4")
 
 def display_state5():
-    while True:
-        ret, frame = cap.read()
-        # You can modify the frame or perform different operations for state 2
-        # For example, you can apply image processing to the frame
-        processed_frame = frame  # Replace this with your actual processing
-        cv2.imshow("State 5", processed_frame)
-        if cv2.waitKey(1) & 0xFF == 27:
-            break
+    print("State")
 
 
 cap = cv2.VideoCapture(0)
@@ -229,7 +239,7 @@ while True:
     if current_state ==3:
         state3(frame)
     if current_state ==4:
-        display_state4(current_state)
+        display_state4()
     if current_state ==5:
         display_state5()
     
