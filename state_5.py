@@ -1,15 +1,15 @@
 import cv2
 import numpy as np
 import math
-from time import sleep
+from time import sleep,perf_counter
 import RPi.GPIO as GPIO
 import os
 
 
 
 
-kp_box = 0.9# Proportional gain for corners and cornering lines
-ki_box =  0.0 # Integral gain for corners and cornering lines
+kp_box = 1.7# Proportional gain for corners and cornering lines
+ki_box =  0.05 # Integral gain for corners and cornering lines
 kd_box = 0.2 # Derivative gain for corners and cornering lines
 
 
@@ -22,6 +22,7 @@ slow_speed = 40 + 10#Speed for corners, cornering lines and intersections
 fast_speed =  100 #Speed for corners, cornering lines and intersections
 state = "initial"
 edge_detected = 0
+start_time_state_5 = None
 
 
 # Set the GPIO mode to BCM
@@ -130,12 +131,12 @@ def finding_box(frame,state):
 
 
   #Define upper and lower value of line color for mask
-  lower_blue_finding_line = np.array([100, 170, 100])
-  upper_blue_finding_line = np.array([130, 255, 255])
+  lower_blue = np.array([100, 180, 120])
+  upper_blue = np.array([130, 255, 255])
 
    #Define upper and lower value of line color for mask
-  lower_blue = np.array([90, 122, 0])
-  upper_blue = np.array([130, 255, 255])
+  #lower_blue = np.array([90, 122, 0])
+  #upper_blue = np.array([130, 255, 255])
 
 
   # Define the HSV range for light brown color
@@ -156,21 +157,21 @@ def finding_box(frame,state):
 
 
   if state == "initial":
-      blue_contours = finding_contour(lower_blue_finding_line,upper_blue_finding_line,hsv,5,9)
+      blue_contours = finding_contour(lower_blue,upper_blue,hsv,15,19)
       brown_contours = finding_contour(lower_brown,upper_brown,hsv,15,19)
           # Find the largest contour
       if brown_contours:
        largest_contour = max(brown_contours, key=cv2.contourArea)     
        largest_brown_area = cv2.contourArea(largest_contour)
-       if largest_brown_area <40000.0:
+       if largest_brown_area <12000.0:
            edge_detected += 1
        cv2.drawContours(roi, [brown_contours[0]], -1, (0, 75, 150), 2)
   else:
-       blue_contours = finding_contour(lower_blue,upper_blue,hsv,10,14)
+       blue_contours = finding_contour(lower_blue,upper_blue,hsv,4,8)
   #Filter out contours by area to reduce noise
   for cnt in blue_contours:
       area_c = cv2.contourArea(cnt)
-      if area_c > 9500.0 and area_c < 30000.0:
+      if area_c > 0.0 and area_c < 30000.0:
           contours_list.append(cnt)
  
   if contours_list:  # Check if contours list is not empty    
@@ -187,17 +188,19 @@ def finding_box(frame,state):
       #Find centorid of contour
       center_point = calculate_centerline(largest_contour)
 
+      approx = cv2.approxPolyDP(largest_contour,0.045*cv2.arcLength(largest_contour,True),True)
+
 
       #Classify lines based on area
-      if largest_area > (18500.0):
-          line_type = "Corner"
-      else:
+      if len(approx) <= 5:
           line_type = "Line"
+      else:
+          line_type = "Corner"
 
 
       #Create vector for straight and cornering lines
       
-      if line_type == 'Line':            
+      if line_type == "Line":            
           for point in largest_contour:
                   distance = np.linalg.norm(point - center_point)
                   if distance > max_distance_threshold:
@@ -206,7 +209,7 @@ def finding_box(frame,state):
                       highest_point = point[0] 
     
       #Create vector for corner
-      if line_type == 'Corner':            
+      if line_type == "Corner":            
           for point in box:
               # Check if the point is in front of the center point in the y-direction
               if point[1] < center_point[1]:
@@ -257,8 +260,8 @@ def finding_box(frame,state):
 
 
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH,280 )
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH,180 )
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 200)
 
 
 
@@ -283,18 +286,26 @@ while True:
    distance = line_track_return[4]
    edge_detector = line_track_return[5]
    right_speed,left_speed = None,None
+   #global start_time_state_5
   
    if processed_frame is not None and processed_frame.shape[0] > 0 and processed_frame.shape[1] > 0:
        cv2.imshow("Blue Tape Detection", processed_frame)
        print(area)
        if state == "initial" and not line_found:
            #drive(-70,70)
+           if start_time_state_5 is None:
+              start_time_state_5 = perf_counter()
            if edge_detector >= 1:
                drive(slow_speed,-slow_speed)
                print("Finding Line: Turning Left")
            else:
                drive(-slow_speed,slow_speed)
                print("Finding Line: Turning Right")
+           
+           elapsed_time = (perf_counter() - start_time_state_5)
+           if elapsed_time > 4:
+               state = "done"
+           
        elif state == "initial" and line_found:
            state = "2"      
        elif state == "2" and line_type == "Line":
@@ -318,22 +329,29 @@ while True:
            state = "3a"     
        elif state == "2" and line_type == "Left Corner":
            state = "3b" 
-       elif state == "3a":
-           drive(-slow_speed,slow_speed)
-           sleep(0.9)
+       elif state == "3a":          
+           if line_found:
+             drive(-slow_speed,slow_speed)
+           else:
+               drive(-slow_speed,slow_speed)
+               sleep(0.3)
+               state = "4"
            print("Turning Right")
-           state = "4"
        elif state == "3b":
-           drive(slow_speed,-slow_speed)
-           sleep(0.9)
+           if line_found:
+             drive(slow_speed,-slow_speed)
+           else:
+               drive(slow_speed,-slow_speed)
+               sleep(0.3)
+               state = "4"
            print("Turning Left")
-           state = "4"
-       elif state == "4" and line_found:
+       elif state == "4":
            drive(slow_speed,slow_speed)
            sleep(0.4)
+           state = "done"
+       elif state == "done":
            print("In Box!")
            break
-
        else:
            drive(-slow_speed,-slow_speed)
            print("Backing Up")

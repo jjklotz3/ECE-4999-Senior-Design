@@ -217,8 +217,8 @@ def display_state5():
 
 
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH,280 )
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH,180 )
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 200)
 
 
 while True:
