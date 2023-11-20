@@ -18,7 +18,7 @@ prev_error = 0
 error = 0
 
 
-slow_speed = 40 + 10#Speed for corners, cornering lines and intersections
+slow_speed = 50#Speed for corners, cornering lines and intersections
 fast_speed =  100 #Speed for corners, cornering lines and intersections
 state = "initial"
 edge_detected = 0
@@ -131,7 +131,7 @@ def finding_box(frame,state):
 
 
   #Define upper and lower value of line color for mask
-  lower_blue = np.array([100, 180, 120])
+  lower_blue = np.array([100, 190, 120])
   upper_blue = np.array([130, 255, 255])
 
    #Define upper and lower value of line color for mask
@@ -303,7 +303,7 @@ while True:
                print("Finding Line: Turning Right")
            
            elapsed_time = (perf_counter() - start_time_state_5)
-           if elapsed_time > 4:
+           if elapsed_time > 3:
                state = "done"
            
        elif state == "initial" and line_found:

@@ -6,7 +6,7 @@ from time import sleep
 import os 
 
 
-"""
+
 kp_corner = 3.4# Proportional gain for corners and cornering lines
 ki_corner=  0.0 # Integral gain for corners and cornering lines
 kd_corner = 0.1 # Derivative gain for corners and cornering lines
@@ -49,11 +49,34 @@ GPIO.setup(ENB, GPIO.OUT)
 # Create PWM objects for speed control
 pwm_a = GPIO.PWM(ENA, 1000)
 pwm_b = GPIO.PWM(ENB, 1000)
+# Function to drive the motors
+def drive(right_speed, left_speed): 
+    if left_speed > 0:
+        GPIO.output(IN3, GPIO.HIGH)
+        GPIO.output(IN4, GPIO.LOW)
+    elif left_speed < 0:
+        GPIO.output(IN3, GPIO.LOW)
+        GPIO.output(IN4, GPIO.HIGH)
+    else:
+        GPIO.output(IN3, GPIO.LOW)
+        GPIO.output(IN4, GPIO.LOW)
+    if right_speed > 0:
+        GPIO.output(IN1, GPIO.HIGH)
+        GPIO.output(IN2, GPIO.LOW)
+    elif right_speed < 0:
+        GPIO.output(IN1, GPIO.LOW)
+        GPIO.output(IN2, GPIO.HIGH)
+    else:
+        GPIO.output(IN1, GPIO.LOW)
+        GPIO.output(IN2, GPIO.LOW)
+
+    pwm_a.ChangeDutyCycle(abs(right_speed))
+    pwm_b.ChangeDutyCycle(abs(left_speed))
 
 pwm_a.start(0)
 pwm_b.start(0)
 
-"""
+
 
 
 #Calculate centerline of contour by using moments
@@ -89,7 +112,7 @@ def blue_line_tracking(frame):
 
 
    #Define upper and lower value of line color for mask
-   lower_blue = np.array([90, 70, 0])
+   lower_blue = np.array([90, 120, 100])
    upper_blue = np.array([130, 255, 255])
 
 
@@ -137,9 +160,9 @@ def blue_line_tracking(frame):
        center_point = calculate_centerline(largest_contour)
 
        #Classify lines based on area
-       if largest_area < 20200.0 and largest_area >16000.0:
+       if (14000.0+2000.0) < largest_area < 20000.0:
            line_type = "Straight Line"
-       elif largest_area < 27500.0 and largest_area>20200.0:
+       elif  20000.0 < largest_area < 27000.0:
            line_type = "Corner"
        elif largest_area > 27000.0:
            line_type = "Intersection"
@@ -194,8 +217,8 @@ def blue_line_tracking(frame):
 
        #If centorid of line can be calculated
        if center_point:
-           """
-           CODE FOR DEBUGGING
+           
+           #CODE FOR DEBUGGING
            cv2.circle(roi, (roi_center[0],roi_center[1]), 10,(255, 255, 255),-1)
            #cv2.circle(roi, (box[0][0],box[0][1]), 10,(255, 255, 255),-1)
            #cv2.circle(roi, (box[1][0],box[1][1]), 10,(50, 50, 50),-1)
@@ -211,7 +234,7 @@ def blue_line_tracking(frame):
            #cv2.line(roi , p1, p2, (255,0,0),3)
            cv2.putText(roi,f'Angle: {str(angle)}',(10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
            cv2.putText(roi,f'Line Type: {line_type}',(10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-           """
+           
            
            if highest_point is not None:  # Check if highest_point is not None before accessing its coordinates
                 #Horizontal shift is calculated for PID loop
@@ -224,8 +247,8 @@ def blue_line_tracking(frame):
    #return roi,largest_area,line_type,error,highest_point, center_point
    return roi,error,line_type, largest_area,direction,angle
 
-"""
-FOR TESTING AND DEBUGING
+
+#FOR TESTING AND DEBUGING
 
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH,280 )
@@ -314,4 +337,3 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
-"""
