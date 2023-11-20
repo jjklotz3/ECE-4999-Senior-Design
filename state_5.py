@@ -4,7 +4,7 @@ import math
 from time import sleep,perf_counter
 import RPi.GPIO as GPIO
 import os
-
+import imutils
 
 
 
@@ -24,7 +24,7 @@ state = "initial"
 edge_detected = 0
 start_time_state_5 = None
 
-
+"""
 # Set the GPIO mode to BCM
 GPIO.setmode(GPIO.BCM)
 # Disable GPIO warnings
@@ -57,6 +57,7 @@ pwm_b = GPIO.PWM(ENB, 1000)
 pwm_a.start(0)
 pwm_b.start(0)
 
+
 # Function to drive the motors
 def drive(right_speed, left_speed): 
     if left_speed > 0:
@@ -80,7 +81,7 @@ def drive(right_speed, left_speed):
 
     pwm_a.ChangeDutyCycle(abs(right_speed))
     pwm_b.ChangeDutyCycle(abs(left_speed))
-
+"""
 #Calculate centerline of contour by using moments
 def calculate_centerline(contours):
    moments = cv2.moments(contours)
@@ -133,7 +134,9 @@ def finding_box(frame,state):
   #Define upper and lower value of line color for mask
   lower_blue = np.array([100, 190, 120])
   upper_blue = np.array([130, 255, 255])
-
+ 
+  #lower_blue = np.array([90, 100, 100])
+  #upper_blue = np.array([130, 255, 255])
    #Define upper and lower value of line color for mask
   #lower_blue = np.array([90, 122, 0])
   #upper_blue = np.array([130, 255, 255])
@@ -151,7 +154,7 @@ def finding_box(frame,state):
   line_type = "","",""
   line_type, direction = "",""
   max_distance_threshold = 200.0
-  contours_list = []
+  contours_list,approx = [],[]
   highest_point = (0,0)
   highest_distance = 0
 
@@ -188,11 +191,11 @@ def finding_box(frame,state):
       #Find centorid of contour
       center_point = calculate_centerline(largest_contour)
 
-      approx = cv2.approxPolyDP(largest_contour,0.045*cv2.arcLength(largest_contour,True),True)
+      approx = cv2.approxPolyDP(largest_contour,0.01*cv2.arcLength(largest_contour,True),True)
 
 
       #Classify lines based on area
-      if len(approx) <= 5:
+      if len(approx) <= 7:
           line_type = "Line"
       else:
           line_type = "Corner"
@@ -251,17 +254,15 @@ def finding_box(frame,state):
    line_found = False
    error = -500
   #return roi,largest_area,line_type,error,highest_point, center_point
-  return roi, largest_area, line_found,line_type,error,edge_detected
+  return roi, largest_area, line_found,line_type,error,edge_detected, len(approx)
 
 
 
 
 #FOR TESTING AND DEBUGING
-
-
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH,180 )
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 200)
+#cap.set(cv2.CAP_PROP_FRAME_WIDTH,280)
+#cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
 
 
 
@@ -269,15 +270,7 @@ while True:
    ret, frame = cap.read()
    if not ret:
        break
-   # Check if the robot is upside down (replace this condition with your detection logic)
-   robot_is_upside_down = False  # Replace with your actual condition
-
-
-   if robot_is_upside_down:
-       # Rotate the frame by 180 degrees
-       frame = cv2.rotate(frame, cv2.ROTATE_180)
-   # Show the image with the blue tape centerline and the center of the image
-  
+   frame = imutils.resize(frame,width=280,height = 300)
    line_track_return = finding_box(frame,state)
    processed_frame = line_track_return[0]
    area = line_track_return[1]
@@ -285,21 +278,22 @@ while True:
    line_type = line_track_return[3]
    distance = line_track_return[4]
    edge_detector = line_track_return[5]
+   approx = line_track_return[6]
    right_speed,left_speed = None,None
    #global start_time_state_5
   
    if processed_frame is not None and processed_frame.shape[0] > 0 and processed_frame.shape[1] > 0:
        cv2.imshow("Blue Tape Detection", processed_frame)
-       print(area)
+       print(approx)
        if state == "initial" and not line_found:
            #drive(-70,70)
            if start_time_state_5 is None:
               start_time_state_5 = perf_counter()
            if edge_detector >= 1:
-               drive(slow_speed,-slow_speed)
+               #drive(slow_speed,-slow_speed)
                print("Finding Line: Turning Left")
            else:
-               drive(-slow_speed,slow_speed)
+               #drive(-slow_speed,slow_speed)
                print("Finding Line: Turning Right")
            
            elapsed_time = (perf_counter() - start_time_state_5)
@@ -324,36 +318,38 @@ while True:
                right_speed = max(0,min((slow_speed),right_speed))
                left_speed = max(0, min((slow_speed), left_speed))
                print(right_speed,left_speed)
-               drive(right_speed, left_speed)
+               #drive(right_speed, left_speed)
        elif state == "2" and line_type == "Right Corner":
            state = "3a"     
        elif state == "2" and line_type == "Left Corner":
            state = "3b" 
        elif state == "3a":          
            if line_found:
-             drive(-slow_speed,slow_speed)
+             #drive(-slow_speed,slow_speed)
+             print("Turning Right")
            else:
-               drive(-slow_speed,slow_speed)
+               #drive(-slow_speed,slow_speed)
                sleep(0.3)
                state = "4"
            print("Turning Right")
        elif state == "3b":
            if line_found:
-             drive(slow_speed,-slow_speed)
+             #drive(slow_speed,-slow_speed)
+             print("Turning Left")
            else:
-               drive(slow_speed,-slow_speed)
+               #drive(slow_speed,-slow_speed)
                sleep(0.3)
                state = "4"
            print("Turning Left")
        elif state == "4":
-           drive(slow_speed,slow_speed)
+           #drive(slow_speed,slow_speed)
            sleep(0.4)
            state = "done"
        elif state == "done":
            print("In Box!")
            break
        else:
-           drive(-slow_speed,-slow_speed)
+           #drive(-slow_speed,-slow_speed)
            print("Backing Up")
 
        

@@ -6,35 +6,32 @@ from time import sleep
 import os
 from time import sleep,perf_counter
 state_3_state = "initial"
-start_time_state_3 = None
+start_time_state_3,launch_start_time = None,None
 
 
-kp_corner = 1.8# Proportional gain for corners and cornering lines
-ki_corner=  0.07 # Integral gain for corners and cornering lines
-kd_corner = 0.6 # Derivative gain for corners and cornering lines
+kp_corner = 1.8# Proportional gain for corners and intersections
+ki_corner=  0.05 # Integral gain for corners and intersections
+kd_corner = 0.6 # Derivative gain for corners and intersections
 
 
-kp_straight = 0.7 # Proportional gain for straight lines
-ki_straight= 0.0  # Integral gain for straight lines
-kd_straight = 0.4  # Derivative gain for straight lines
+kp_straight = 0.7 # Proportional gain for lines
+ki_straight= 0.0  # Integral gain for lines
+kd_straight = 0.4  # Derivative gain for lines
 
-
-
+#Varaibles for On the Ground State Machine
 integral = 0
 prev_error = 0
 error = 0
 backup_count = 0
 backup_state,launch_phase,wrong_way = False, False,False
-
-
-slow_speed = 80 #Speed for corners, cornering lines and intersections
-fast_speed =  100 #Speed for corners, cornering lines and intersections
-intersection_speed = 50 #Speed for intersections
+slow_speed = 80 #Speed for corners and intersections
+fast_speed =  100 #Speed for lines
 right_corner_count,left_corner_count = 0,1
-wrong_turn_time_intersection = 17
 direction = ""
-corner_count,turn, intersection_count = 0,0,0
+corner_count,turn, intersection_count,back_up_launch = 0,0,0,0
+backup,line_up = False,False
 
+"""
 # Set the GPIO mode to BCM
 GPIO.setmode(GPIO.BCM)
 # Disable GPIO warnings
@@ -63,10 +60,11 @@ GPIO.setup(ENB, GPIO.OUT)
 pwm_a = GPIO.PWM(ENA, 1000)
 pwm_b = GPIO.PWM(ENB, 1000)
 
-
+#Initalize PWM Signal At 0
 pwm_a.start(0)
 pwm_b.start(0)
 
+#L289N Motor Driver Code
 def drive(right_speed, left_speed): 
     if left_speed > 0:
         GPIO.output(IN3, GPIO.HIGH)
@@ -89,7 +87,7 @@ def drive(right_speed, left_speed):
 
     pwm_a.ChangeDutyCycle(abs(right_speed))
     pwm_b.ChangeDutyCycle(abs(left_speed))
-
+"""
 
 #Calculate centerline of contour by using moments
 def calculate_centerline(contours):
@@ -113,29 +111,22 @@ def calculate_angle(A, B):
 
 
 #Track blue line(state 3)
-def blue_line_tracking(frame,state_3_state):
+def blue_line_tracking(frame):
   roi = frame
-
-
-  roi_height, roi_width = roi.shape[:2]
-   #Get poistion of center of current frame
+  roi_height, roi_width = roi.shape[:2]     #Get poistion of center of current frame
   roi_center = (roi_width // 2, roi_height // 2)  # Fix the order of width and height
-   #Convert frame to HSV color space
-  hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-
-
-
+  hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)   #Convert frame to HSV color space
 
   #Define upper and lower value of line color for mask
+  #Specific values for competition lighting
   #Taken at 10:44 AM November 21 2023
-  lower_blue = np.array([90, 70, 80])
-  upper_blue = np.array([130, 255, 255])
-  #Define upper and lower value of line color for mask
-  #lower_blue = np.array([100, 100, 100])
+  #lower_blue = np.array([90, 70, 80])
   #upper_blue = np.array([130, 255, 255])
 
-
-
+  #Define upper and lower value of line color for mask
+  #Generally good values for all lghting conditions
+  lower_blue = np.array([90, 100, 100])
+  upper_blue = np.array([130, 255, 255])
 
   # Create a mask to isolate the blue color
   mask = cv2.inRange(hsv, lower_blue, upper_blue)
@@ -149,40 +140,32 @@ def blue_line_tracking(frame,state_3_state):
   #Find contours
   contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
  
-  #Initalize state 3 variables
+  #Initalize variables
   global right_corner_count
   global left_corner_count
   global direction
   center_point,error,angle,x_midpoint,y_midpoint,highest_point,box,line_found = None,None,None,None,None,None,None,None
   largest_area = 1
   line_type = ""
-
   max_distance_threshold = 200.0
   contours_list,approx= [],[]
   highest_point = (0,0)
   highest_distance = 0
 
-
- 
   #Filter out contours by area to reduce noise
   for cnt in contours:
       area_c = cv2.contourArea(cnt)
-      if area_c > 700.0 and area_c < 37000.0:
+      if area_c > 1000.0 and area_c < 37000.0:
           contours_list.append(cnt)
-
-
-
 
   if contours_list:  # Check if contours list is not empty
      
-      # Find the largest contour
+      # Find the largest contour and approximate the shape of the contour
       largest_contour = max(contours_list, key=cv2.contourArea)     
       largest_area = cv2.contourArea(largest_contour)
       approx = cv2.approxPolyDP(largest_contour,0.01*cv2.arcLength(largest_contour,True),True)
      
-
-
-       #Classify lines based on area
+      #Classify lines based on how many vertcies approx returns
       if len(approx) <= 5:
            line_type = "Line"
       elif 6 <= len(approx) <= 7:
@@ -190,59 +173,50 @@ def blue_line_tracking(frame,state_3_state):
       else:
            line_type = "Intersection"
 
-
       #Find minimum area rectangle of the largest contour
       blackbox = cv2.minAreaRect(largest_contour)
       box = cv2.boxPoints(blackbox)
       box = np.intp(box)
 
-
-      #Find centorid of contour
+      #Find centorid of largest contour
       center_point = calculate_centerline(largest_contour)
 
-
-
-
-      #Create vector for straight and cornering lines
+      #Find vector tip for lines
+      #Find furthest point away from the centeroid that is at most 200.0 pixels away
       if line_type == 'Line':            
           for point in largest_contour:
                   distance = np.linalg.norm(point - center_point)
                   if distance > max_distance_threshold:
-                      continue  # Skip points that are beyond the maximum distance
+                      continue  
                   if distance > highest_distance:
                       highest_point = point[0] 
     
-      #Create vector for corner
+      #Find vector tip for corners and intersections 
+      #Find the furthest point away from the centroid between 
+      #The two verticies that are less than the centorid on the y-axis
       if line_type == 'Corner' or line_type == "Intersection":            
           for point in box:
-              # Check if the point is in front of the center point in the y-direction
               if point[1] < center_point[1]:
-                  # Check if this point is further away than the previous highest point
                    distance = math.sqrt((point[0] - center_point[0])**2 + (point[1] - center_point[1])**2)
                    if distance > highest_distance:
                        highest_point = point
-                       highest_distance = distance
-      """
-      #Create vector for intersections
-      if line_type == 'Intersection':  
-           highest_point = roi_center
-           angle = 0
-           center_point = roi_center
-      """
       
+      #Decide which way the robot should turn when it encounters the 
+      #Final intersecton based on the most frewuent corner direction
       if right_corner_count < left_corner_count:
             direction = "Right"
       else:
             direction = "Left"
       
       #Calculate the mid point of the line vector
-      if highest_point is not None:  # Check if highest_point is not None before accessing its coordinates
+      #center_point is the tail and highest_point is the tip of the vector
+      if highest_point is not None:  
             x_midpoint = int((center_point[0] + highest_point[0]) // 2)         
             y_midpoint = int((center_point[1] + highest_point[1]) // 2)
             angle = int(calculate_angle(center_point,highest_point))
 
      
-      #Define direction of corner based on angle
+      #Define direction of corner based on angle of vector
       if angle > 90 and line_type == "Corner":
           line_type = "Left " + line_type
           left_corner_count += 1
@@ -255,47 +229,29 @@ def blue_line_tracking(frame,state_3_state):
       #If centorid of line can be calculated
       if center_point:
           line_found = True
-          #CODE FOR DEBUGGING
+
+          #CODE FOR DEBUGGING ON IMREAD WINDOW
           cv2.circle(roi, (roi_center[0],roi_center[1]), 10,(255, 255, 255),-1)
-          #cv2.circle(roi, (box[0][0],box[0][1]), 10,(255, 255, 255),-1)
-          #cv2.circle(roi, (box[1][0],box[1][1]), 10,(50, 50, 50),-1)
-          #cv2.circle(roi, (box[2][0],box[2][1]), 10,(255, 255, 0),-1)
-          #cv2.circle(roi, (box[3][0],box[3][1]), 10,(0, 255, 255),-1)
           #cv2.circle(roi, (center_point[0],center_point[1]), 4, (0, 0, 255),-1)
           cv2.circle(roi,(x_midpoint,y_midpoint), 10, (0, 0, 255), -1)
-          #cv2.circle(roi,highest_point, 10, (255, 0, 255), -1)
-          #cv2.circle(roi,reflected_point, 40, (255, 255, 0), -1)
           cv2.arrowedLine(roi,(center_point[0],center_point[1]),highest_point,(60,255,50),10)
           cv2.drawContours(roi, [largest_contour], -1, (255, 255, 0), 5)  # You can change the color and thickness
-          #cv2.drawContours(roi, [box], -1, (0, 255, 0), 10)  # You can changecv2.circle(roi, (roi_center[0],roi_center[1]), 10,(255, 255, 255),-1) the color and thickness
-          #cv2.line(roi , p1, p2, (255,0,0),3)
           cv2.putText(roi,f'Angle: {str(angle)}',(10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
           cv2.putText(roi,f'Line Type: {line_type}',(10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-         
-         
-          if highest_point is not None:  # Check if highest_point is not None before accessing its coordinates
-               #Horizontal shift is calculated for PID loop
-    
+          
+          #Horizontal shift is calculated for PID loop     
+          if highest_point is not None:  
                 error = x_midpoint - roi_center[0]
-                
 
-         
- 
-             
-  #if not(contours_list) and state_3_state != "initial":
-       #error = -500 #This is returned if the line is not found
-  #return roi,largest_area,line_type,error,highest_point, center_point
+   #Return necessary variables for On the Ground State Machine             
   return roi, error, line_type, largest_area, direction, line_found,right_corner_count,left_corner_count
 
 
 
-
+"""
 #FOR TESTING AND DEBUGING
-
-
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 280 )
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
+
 
 
 
@@ -303,9 +259,9 @@ while True:
    ret, frame = cap.read()
    if not ret:
        break
-   
-   # Show the image with the blue tape centerline and the center of the image
-   line_track_return = blue_line_tracking(frame,state_3_state)
+   frame = imutils.resize(frame,width=280,height = 300)
+   #Initialize On the Ground State Machine variables
+   line_track_return = blue_line_tracking(frame)
    processed_frame = line_track_return[0]
    distance = line_track_return[1]
    line_type = line_track_return[2]
@@ -315,65 +271,88 @@ while True:
    right_speed,left_speed= None,None
  
 
-
+   #On the Ground State Machine
    if processed_frame is not None and processed_frame.shape[0] > 0 and processed_frame.shape[1] > 0:
        cv2.imshow("Blue Tape Detection", processed_frame)
+       
+       #Caclulate the total time the state machine runs when a line is found
        if state_3_state != 'initial':
            total_time = perf_counter() - start_time_state_3
+           #FOR DEBUGGING
            #print(total_time,right_corner_count,left_corner_count)
-           print(turn)
+           #print(state_3_state,turn,backup_count,distance)
            #print(state_3_state,total_time,line_type)
-           #print(state_3_state,line_type,area)
+           #print(right_speed,left_speed)
+    
+       #Start the state specific launch phase timer
+       if launch_start_time is None and state_3_state == '3b':
+            launch_start_time = perf_counter()
+
+       #Turn to te right until a line is found
        if state_3_state == "initial" and not line_found:
             drive(-slow_speed,slow_speed)
             print("Finding Line: Turning Right")
+
+       #Once a line is found, start the total state machine start time and move to line following state
        elif state_3_state == "initial" and line_found and start_time_state_3 is None:
            start_time_state_3 = perf_counter()
            state_3_state = "1b"     
 
+       #If the robot turns the opposite direction of the track, 
+       #Turn around to start following the track in the right directon
        elif state_3_state == "1c":
-           #Turn Right 180 degrees, continue to follow line
-           wrong_turn_time_intersection = 20
+           turn = 0
            wrong_way = True
            drive(-slow_speed,slow_speed)
            print("Turning")
-           sleep(1.0)
-           if line_type is not None:
-             backup_count = 0
-             state_3_state = "1b"
-
+           sleep(1.4)
+           backup_count = 0
+           state_3_state = "1b"
+       
+       #Line following state
        elif state_3_state == "1b" and line_found:
+           
+           #Once the robot completes the course and is at the end of the line,
+           #Move into launch phase
+           if turn <= 3 and backup_count >= 10:
+               state_3_state = '3a'
+
+           #Count how many times the robot backs up
            if backup_state:
                backup_count +=1
                backup_state = False
 
-           if backup_count>2 and total_time<10:
+           #Triggers the robot to turn around if starts following the track in 
+           #The wrong direction
+           if backup_count>2 and total_time<5:
                state_3_state = '1c' 
            
            error = distance
 
-
            if error is None:
                integral = 0
-                   # Rest of your PID controller logic
+
            else:
-              
+
+            #PID controller implementation             
             integral += error
             derivative = error - prev_error
             pid = lambda error,integral,derivative,kp,ki,kd: kp * error + ki * integral + kd * derivative
+            
+            #If the robot has not completed the track, take into account all line types and 
+            #Follow them accordingly
             if not launch_phase:
                if line_type == "Line":
+                   
                    corner_count = 0
                    intersection_count = 0
                    pid_output = pid(error,integral,derivative,kp_straight,ki_straight,kd_straight)
                    right_speed = (fast_speed) - pid_output
                    left_speed = (fast_speed) + pid_output
-
-
-                   # Ensure motor speeds are within a valid range (0-100)
-                   right_speed = max(0,min((fast_speed),right_speed))
-                   left_speed = max(0, min((fast_speed), left_speed))
+                   right_speed = max(0,min(fast_speed,right_speed))
+                   left_speed = max(0, min(fast_speed, left_speed))
                    drive(right_speed, left_speed)
+
                elif line_type == "Right Corner" or line_type == "Left Corner":
                    corner_count += 1
                    intersection_count = 0
@@ -383,43 +362,35 @@ while True:
                    pid_output = pid(error,integral,derivative,kp_corner,ki_corner,kd_corner)
                    right_speed = (slow_speed) - pid_output
                    left_speed = (slow_speed) + pid_output
-
-
-                   # Ensure motor speeds are within a valid range (0-100)
                    right_speed = max(0,min((slow_speed),right_speed))
                    left_speed = max(0, min((slow_speed), left_speed))
                    drive(right_speed, left_speed)
+
                elif line_type == "Intersection":
                    corner_count = 0
                    intersection_count += 1
-                   if turn >= 4 and intersection_count >= 2:
+                   if turn >= 4 and intersection_count >= 3:
                         state_3_state = '2'
                         intersection_count = 0
-                   """
-                   if total_time > 14 and not wrong_way:
-                       state_3_state = '2'
-                   if wrong_way and max(left_corner_count,right_corner_count)>40+10:
-                      state_3_state = '2'
-                    """
                    if direction == "Left":
                        right_speed,left_speed = slow_speed,-slow_speed
                    else:
                       right_speed,left_speed = -slow_speed,slow_speed
                    drive(right_speed,left_speed)
+               #print(right_speed,left_speed)
             else:
-               
+                   #If the robot has completed the track, just follow the line withut accounting for line type
                    pid_output = pid(error,integral,derivative,kp_straight,ki_straight,kd_straight)
                    right_speed = (fast_speed) - pid_output
                    left_speed = (fast_speed) + pid_output
-
-
-                   # Ensure motor speeds are within a valid range (0-100)
                    right_speed = max(0,min((fast_speed),right_speed))
                    left_speed = max(0, min((fast_speed), left_speed))
                    drive(right_speed,left_speed)
             prev_error = error
             #print(right_speed,left_speed,line_type,total_time)
 
+       #Once the course is completed and the final intersection is encoutered,
+       #Make sure te robot turns down the intersection
        elif state_3_state == "2":
            launch_phase = True
            if direction == "Left":
@@ -430,15 +401,29 @@ while True:
            drive(right_speed,left_speed)
            if line_type == "Line":
              state_3_state = '1b'
-       elif state_3_state == 'done':
-           print("To Launch Phase")
-           break
+       #Launch Phase that lines robot up as staright as possible and backs up to 1.5 ft
+       #Away from the end of the line
+       elif state_3_state == '3a':   
+            if direction == "Right":
+                right_speed,left_speed = -slow_speed,slow_speed
+            else:
+                right_speed,left_speed = slow_speed,-slow_speed
+            drive(right_speed,left_speed)
+            sleep(0.2)
+            drive(-slow_speed,-slow_speed)
+            sleep(1.0)
+            print("Ready to Launch ")
+            break
+        
+       #If the robot loses the line while following the course,
+       #Backup until Line is Found
        else:
-          if launch_phase and backup_count>0:
-                state_3_state = 'done' 
+          if launch_phase:
+                state_3_state = '3a' 
+        
           backup_state = True
           drive(-slow_speed,-slow_speed)
-          #print("Backing Up")
+          print("Backing Up")
                
    if cv2.waitKey(1) & 0xFF == 27:
        break
@@ -446,4 +431,4 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
-
+"""
