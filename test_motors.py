@@ -4,6 +4,8 @@ import math
 import RPi.GPIO as GPIO
 from time import sleep
 
+#THIS SCRIPT IS MEANT TO TEST THE DRIVING MOTOR FUNCTION OF THE ROBOT
+
 # Set the GPIO mode to BCM
 GPIO.setmode(GPIO.BCM)
 # Disable GPIO warnings
