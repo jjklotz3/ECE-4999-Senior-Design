@@ -1,6 +1,9 @@
 from __future__ import print_function
 import cv2 as cv
 import argparse
+
+
+#THE PURPOSE OF THIS SCRIPR IS TO EASILY FIND THE PROPER HSV RANGE TO CREATE A COLOR MASK FOR THE ROBOTS ENVIRONMENT
 max_value = 255
 max_value_H = 360//2
 low_H = 0
@@ -70,6 +73,7 @@ while True:
     ret, frame = cap.read()
     if frame is None:
         break
+    frame = cv.flip(frame,0)
     frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
     frame_threshold = cv.inRange(frame_HSV, (low_H, low_S, low_V), (high_H, high_S, high_V))
     

@@ -6,13 +6,25 @@ from time import sleep,perf_counter
 import os 
 import imutils
 from state_2 import blue_line_tracking, calculate_angle, calculate_centerline
-from state_5 import finding_box, calculate_angle, calculate_centerline, finding_contour
+from state_3 import finding_box, calculate_angle, calculate_centerline, finding_contour
+from gpiozero.pins.pigpio import PiGPIOFactory
+from gpiozero import AngularServo
 
+# Use the pigpio pin factory for better servo control
+pi_gpio_factory = PiGPIOFactory(host='localhost', port=8888)
+
+#initalize servos with AngularServo Object
+launch_servo = AngularServo(12, pin_factory=pi_gpio_factory, min_angle=0, max_angle=270, min_pulse_width=0.0005, max_pulse_width=0.0025)
+lifting_arm_l = AngularServo(16, pin_factory=pi_gpio_factory, min_angle=0, max_angle=270, min_pulse_width=0.0005, max_pulse_width=0.0025)
+lifting_arm_r = AngularServo(25, pin_factory=pi_gpio_factory, min_angle=0, max_angle=270, min_pulse_width=0.0005, max_pulse_width=0.0025)
+
+angle1,angle2 = 0,248
 os.environ['QT_QPA_PLATFORM']= 'xcb'
 
-current_state = 3
+current_state = 2
 state_3_state,state_2_state = 'initial','initial'
 start_time_state_2,launch_start_time,start_time_state_3 = None,None,None
+launch = False
 
 #STATES DESCRIPTIONS
 #S1: DRIVE OFF TABLE
@@ -90,6 +102,7 @@ def state2(frame):
    global current_state
    global state_2_state
    global launch_start_time
+   global launch
    
     
    kp_corner = 1.8# Proportional gain for corners and intersections
@@ -267,7 +280,7 @@ def state2(frame):
             drive(-slow_speed,-slow_speed)
             sleep(1.0)
             print("Ready to Launch ")
-            current_state = 3
+            launch = True
             
         
        #If the robot loses the line while following the course,
@@ -280,111 +293,6 @@ def state2(frame):
           drive(-slow_speed,-slow_speed)
           print("Backing Up")
 
-"""
-def state3_test(frame):   
-        global start_time_state_3
-        global current_state
-        
-        if start_time_state_3 is None:
-            start_time_state_3 = time.perf_counter()
-            
-        kp_corner = 3.4# Proportional gain for corners and cornering lines
-        ki_corner=  0.0 # Integral gain for corners and cornering lines
-        kd_corner = 0.1 # Derivative gain for corners and cornering lines
-
-        kp_straight = 0.4 # Proportional gain for straight lines
-        ki_straight= 0.0  # Integral gain for straight lines
-        kd_straight = 0.0  # Derivative gain for straight lines
-
-        integral = 0
-        prev_error = 0
-        error = 0 
-
-        slow_speed = 80 #Speed for corners, cornering lines and intersections
-        fast_speed =  100 #Speed for corners, cornering line
-        intersection_speed = 50 #Speed for intersections
-
-
-        #Initalize varaibles for PID loop
-        line_track_return = blue_line_tracking(frame)
-        processed_frame = line_track_return[0]
-        distance = line_track_return[1]
-        line_type = line_track_return[2]
-        area = line_track_return[3]
-        direction = line_track_return[4]
-        right_speed,left_speed = None,None
-        angle = line_track_return[5]
-      
-
-        if processed_frame is not None and processed_frame.shape[0] > 0 and processed_frame.shape[1] > 0:
-           #while current_state == 3: 
-                #If the line is lost, back up until line is found again
-                if distance == -500:
-                        elapsed_time = (time.perf_counter() - start_time_state_3)
-                        if elapsed_time > 19:
-                            drive(0,0)
-                            current_state = 4
-                            print("Moving to State 4",elapsed_time)
-                        else:
-                            right_speed =  -1 * slow_speed
-                            left_speed =  -1 * slow_speed
-                            drive(right_speed,left_speed)
-                            print("Backing Up",(right_speed,left_speed),elapsed_time)
-                else:    
-                    
-                    #Proportional variable
-                    error = distance
-
-                    if error is None:
-                        
-                        #Integral variable
-                        integral = 0
-                            # Rest of your PID controller logic
-                    else:
-                        
-                        #PID Loop
-                        integral += error
-                        derivative = error - prev_error
-                        pid = lambda error,integral,derivative,kp,ki,kd: kp * error + ki * integral + kd * derivative
-                        
-                        #PID Loop for Corners and Cornering Lines
-                        if line_type == "Right Corner" or line_type == "Cornering Line" or line_type == "Left Corner":
-                            pid_output = pid(error,integral,derivative,kp_corner,ki_corner,kd_corner)
-                            right_speed = (slow_speed) - pid_output
-                            left_speed = (slow_speed) + pid_output
-
-                            # Ensure motor speeds are within a valid range (0-100)
-                            right_speed = max(0,min((slow_speed),right_speed))
-                            left_speed = max(0, min((slow_speed), left_speed))
-                            drive(right_speed, left_speed)
-                        
-                        #PID loop for Straight Line
-                        elif line_type == "Straight Line":
-                            pid_output = pid(error,integral,derivative,kp_straight,ki_straight,kd_straight)
-                            right_speed = (fast_speed) - pid_output
-                            left_speed = (fast_speed) + pid_output
-
-                            # Ensure motor speeds are within a valid range (0-100)
-                            right_speed = max(0,min((fast_speed),right_speed))
-                            left_speed = max(0, min((fast_speed), left_speed))
-                            drive(right_speed, left_speed)
-                        
-                        #Motor control for Intersection
-                        else:
-                            if direction == "Left":
-                                right_speed,left_speed = -1,intersection_speed
-                                drive(right_speed,left_speed)
-                            
-                            right_speed,left_speed = intersection_speed,-1
-                            drive(right_speed,left_speed)
-                            print(direction)
-                            
-                        #Derrivative Variable
-                        prev_error = error
-
-                        #Print Helpful Variables
-                        print(right_speed,left_speed,angle,line_type)
- """                   
 
 def state3(frame):
    global current_state
@@ -401,7 +309,7 @@ def state3(frame):
    error = 0
 
 
-   slow_speed = 50#Speed for corners, cornering lines and intersections
+   slow_speed = 80#Speed for corners, cornering lines and intersections
    edge_detected = 0
 
    line_track_return = finding_box(frame,state_3_state)
@@ -491,17 +399,36 @@ cap = cv2.VideoCapture(0)
 
 
 while True:
-    
+    launch_servo.angle = 110
+    lifting_arm_l.angle = 0
+    lifting_arm_r.angle = 248
+
     ret, frame = cap.read()
     if not ret:
         break
 
+    #frame = cv2.flip(frame,0)
     frame = imutils.resize(frame,width=280,height = 300)
 
     if current_state == 1:
         state1()
     if current_state ==2:
-        state2(frame)
+        if launch == True:
+            while(angle1 != 132 and angle2 != 128):
+                angle1 += 20
+                angle2 -= 20
+                lifting_arm_l.angle = angle1
+                lifting_arm_r.angle = angle2
+                sleep(0.4)
+            sleep(4)
+            launch_servo.angle = 200
+            sleep(0.4)
+            lifting_arm_l.angle = 0
+            lifting_arm_r.angle = 248
+            current_state = 3
+            launch = False
+        else:
+            state2(frame)
     if current_state ==3:
         state3(frame)
     if current_state ==4:

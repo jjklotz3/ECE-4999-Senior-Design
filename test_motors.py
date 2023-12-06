@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import math
-from gpiozero import Robot 
 import RPi.GPIO as GPIO
 from time import sleep
 
@@ -15,8 +14,8 @@ IN1 = 5 #right motor direction pin1
 IN2 = 6 #right motor direction pin2 
 IN3 = 17 #left motor direction pin1 
 IN4 = 23 #left motor direction pin2 
-ENA = 27 #right motor PWM speed pin 
-ENB = 22 #left motor PWM speed pin 
+ENA = 22 #right motor PWM speed pin 
+ENB = 27 #left motor PWM speed pin 
 
 # Set the motor pins as output
 GPIO.setup(IN1, GPIO.OUT)
@@ -33,7 +32,7 @@ pwm_b = GPIO.PWM(ENB, 1000)
 
 pwm_a.start(0)
 pwm_b.start(0)
-# Function to drive the motors
+
 def drive(right_speed, left_speed): 
     if left_speed > 0:
         GPIO.output(IN1, GPIO.HIGH)
@@ -57,11 +56,17 @@ def drive(right_speed, left_speed):
     pwm_a.ChangeDutyCycle(abs(right_speed))
     pwm_b.ChangeDutyCycle(abs(left_speed))
 
+
 while(True):
-                    drive(-1,50)
+                    
+                    drive(-100,100)
+                    sleep(0.1)
+                    break
+                    """
                     sleep(2)
                     drive(0,0)
                     sleep(0.5)
-                    drive(50,-50)
+                    drive(100,100)
                     sleep(2)
                     break
+                    """
