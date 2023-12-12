@@ -1,5 +1,6 @@
 # ECE-4999-Senior-Design
-This Senior Design project consisted of a robot that can get on and off a table and follow the course below.
+This Senior Design project consisted of a robot that can get on and off a table and follow the course below:
+
 
 
 The programing part of this project consisted of creating a line following robot as well as a robot that can get inside and outside of a box.
