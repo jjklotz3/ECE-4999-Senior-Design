@@ -8,6 +8,8 @@ This was accomplished using OpenCV Python levearging the powerful computer visio
 
 Line Following Robot:
 
+[![Video Title](https://img.youtube.com/vi/VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)
+
 Robot Following Course Clockwise:
 
 Robot Following Course Counter Clockwise:
