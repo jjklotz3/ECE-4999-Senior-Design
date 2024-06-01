@@ -1,4 +1,4 @@
-# ECE-4999-Senior-Design
+# OpenCV Line Follower
 This Senior Design project consisted of a robot that can get on and off a table and follow the course below:
 
 
