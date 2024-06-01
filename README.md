@@ -8,20 +8,24 @@ This was accomplished using OpenCV Python levearging the powerful computer visio
 
 Line Following Robot:
 
+[!(https://drive.google.com/file/d/1vPrfrPwQDmazfWAJ112zNdRYPduI3HK-/view?usp=share_link)]
 
 
 
+[![Robot Following Course Clockwise](https://img.https://www.youtube.com/shorts/RLmc7vq8F2o.jpg)](https://www.youtube.com/shorts/RLmc7vq8F2o)
 
-[![Robot Following Course Clockwise:](https://img.https://www.youtube.com/shorts/RLmc7vq8F2o.jpg)](https://www.youtube.com/shorts/RLmc7vq8F2o)
+
+[![Robot Following Course Counter Clockwise](https://img.https://www.youtube.com/shorts/xZM0sqLEEM8.jpg)](https://www.youtube.com/shorts/xZM0sqLEEM8)
 
 
-[![Robot Following Course Counter Clockwise:](https://img.https://www.youtube.com/shorts/xZM0sqLEEM8.jpg)](https://www.youtube.com/shorts/xZM0sqLEEM8)
 
-Robot Facing The Wrong Way:
+[![Robot Facing Track the Wrong Way](https://img.https://www.youtube.com/shorts/k9cmPeyY0mo.jpg)](https://www.youtube.com/shorts/k9cmPeyY0mo)
 
-Getting In Box On Table:
 
-Inside Box:
+[![Robot Starts Inside of Box on Table](https://img.https://www.youtube.com/shorts/LyzmGsphpEI.jpg)](https://www.youtube.com/shorts/LyzmGsphpEI)
 
-Outside Box: 
+
+[![Robot Starts Outside of Box on Table](https://img.https://www.youtube.com/shorts/EVqE8CF1C_c.jpg)](https://www.youtube.com/shorts/EVqE8CF1C_c)
+
+
 
