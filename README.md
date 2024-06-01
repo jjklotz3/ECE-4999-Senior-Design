@@ -8,11 +8,14 @@ This was accomplished using OpenCV Python levearging the powerful computer visio
 
 Line Following Robot:
 
-[![Video Title](https://img.https://www.youtube.com/shorts/xZM0sqLEEM8.jpg)](https://www.youtube.com/shorts/xZM0sqLEEM8)
 
-Robot Following Course Clockwise:
 
-Robot Following Course Counter Clockwise:
+
+
+[![Robot Following Course Clockwise:](https://img.https://www.youtube.com/shorts/RLmc7vq8F2o.jpg)](https://www.youtube.com/shorts/RLmc7vq8F2o)
+
+
+[![Robot Following Course Counter Clockwise:](https://img.https://www.youtube.com/shorts/xZM0sqLEEM8.jpg)](https://www.youtube.com/shorts/xZM0sqLEEM8)
 
 Robot Facing The Wrong Way:
 
