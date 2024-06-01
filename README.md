@@ -8,8 +8,7 @@ This was accomplished using OpenCV Python levearging the powerful computer visio
 
 Line Following Robot:
 
-https://drive.google.com/file/d/1vPrfrPwQDmazfWAJ112zNdRYPduI3HK-/view?usp=share_link
-
+![image](https://drive.google.com/file/d/1vPrfrPwQDmazfWAJ112zNdRYPduI3HK-/view?usp=share_link)
 
 
 [![Robot Following Course Clockwise](https://img.https://www.youtube.com/shorts/RLmc7vq8F2o.jpg)](https://www.youtube.com/shorts/RLmc7vq8F2o)
