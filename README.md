@@ -8,7 +8,7 @@ This was accomplished using OpenCV Python levearging the powerful computer visio
 
 Line Following Robot:
 
-[!(https://drive.google.com/file/d/1vPrfrPwQDmazfWAJ112zNdRYPduI3HK-/view?usp=share_link)]
+https://drive.google.com/file/d/1vPrfrPwQDmazfWAJ112zNdRYPduI3HK-/view?usp=share_link
 
 
 
